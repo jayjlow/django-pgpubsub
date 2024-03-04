@@ -113,9 +113,9 @@ def listen_to_channels(channels: Union[List[BaseChannel], List[str]] = None):
 
 
 def process_notifications(pg_connection):
-    pg_connection.poll()
-    while pg_connection.notifies:
-        notification = pg_connection.notifies.pop(0)
+    # pg_connection.poll()
+    gen = pg_connection.notifies()
+    for notification in gen:
         with transaction.atomic():
             for processor in [
                 NotificationProcessor,
@@ -129,6 +129,8 @@ def process_notifications(pg_connection):
                 else:
                     processor.process()
                     break
+        if notification.payload == "stop":
+            gen.close()
 
 
 class NotificationProcessor:
@@ -150,7 +152,7 @@ class NotificationProcessor:
         channel = self.channel_cls.build_from_payload(
             self.notification.payload, self.callbacks)
         channel.execute_callbacks()
-        self.pg_connection.poll()
+        #self.pg_connection.poll()
 
 
 class CastToJSONB(Func):
